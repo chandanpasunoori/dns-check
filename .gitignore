@@ -1,0 +1,9 @@
+app.json
+app2.json
+cloudbuild.yaml
+dist/
+dns-check
+deployment.yaml
+Makefile
+bin/
+ignored.json
