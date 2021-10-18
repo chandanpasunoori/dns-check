@@ -25,7 +25,7 @@ var logger = log.Logger{
 func (d *Domain) getCNAMERecords() string {
 	cname, err := net.LookupCNAME(d.Name)
 	if err != nil {
-		logger.Errorf("Error looking up CNAME for %s: %s", d.Name, err)
+		logger.Errorf("error looking up CNAME for %s: %s", d.Name, err)
 		return ""
 	}
 	return cname
@@ -42,12 +42,16 @@ func (d *Domain) Check() bool {
 }
 
 func checkDNSTarget(domain Domain, ses SES) {
-	logger.Infof("Checking %s", domain.Name)
+	logger.Infof("checking %s", domain.Name)
 	if !domain.Check() {
-		//@todo send email with aws ses
 		logger.Errorf("%s is not pointing to %s", domain.Name, domain.Target)
-		sendEmail(domain, ses)
+		sendEmail(Subject(domain, ses), HtmlBody(domain, ses), TextBody(domain, ses), ses)
 	}
+}
+
+func errorEmail(ses SES, err error) {
+	errorMessage := fmt.Sprintf("Error in DNS Check(%s)", err.Error())
+	sendEmail(errorMessage, errorMessage, errorMessage, ses)
 }
 
 const (
@@ -64,19 +68,20 @@ func TextBody(d Domain, ses SES) string {
 	return fmt.Sprintf(ses.Body, d.Name)
 }
 
-func sendEmail(d Domain, sesc SES) {
+func sendEmail(subject, htmlBody, body string, s SES) {
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String(sesc.Region)},
+		Region: aws.String(s.Region)},
 	)
 	if err != nil {
-		logger.Errorf("Error creating session: %s", err)
+		logger.Errorf("error creating session: %s", err)
+		errorEmail(s, err)
 		return
 	}
 
 	svc := ses.New(sess, &aws.Config{
 		Credentials: credentials.NewStaticCredentials(
-			sesc.AccessKey,
-			sesc.SecretKey,
+			s.AccessKey,
+			s.SecretKey,
 			"",
 		),
 	})
@@ -85,26 +90,26 @@ func sendEmail(d Domain, sesc SES) {
 		Destination: &ses.Destination{
 			CcAddresses: []*string{},
 			ToAddresses: []*string{
-				aws.String(sesc.Recipient),
+				aws.String(s.Recipient),
 			},
 		},
 		Message: &ses.Message{
 			Body: &ses.Body{
 				Html: &ses.Content{
 					Charset: aws.String(CharSet),
-					Data:    aws.String(HtmlBody(d, sesc)),
+					Data:    aws.String(htmlBody),
 				},
 				Text: &ses.Content{
 					Charset: aws.String(CharSet),
-					Data:    aws.String(TextBody(d, sesc)),
+					Data:    aws.String(body),
 				},
 			},
 			Subject: &ses.Content{
 				Charset: aws.String(CharSet),
-				Data:    aws.String(Subject(d, sesc)),
+				Data:    aws.String(subject),
 			},
 		},
-		Source: aws.String(sesc.Sender),
+		Source: aws.String(s.Sender),
 	}
 	result, err := svc.SendEmail(input)
 
@@ -123,8 +128,9 @@ func sendEmail(d Domain, sesc SES) {
 		} else {
 			logger.Println(err.Error())
 		}
+		errorEmail(s, err)
 		return
 	}
-	logger.Println("Email Sent to address: " + sesc.Recipient)
+	logger.Println("email sent to address: " + s.Recipient)
 	logger.Println(result.MessageId)
 }
