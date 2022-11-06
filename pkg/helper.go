@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -12,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 var logger = log.Logger{
@@ -22,18 +22,39 @@ var logger = log.Logger{
 	Level: log.InfoLevel,
 }
 
-func (d *Domain) getCNAMERecords() string {
+func (d *Domain) getCNAMERecords() []string {
 	cname, err := net.LookupCNAME(d.Name)
 	if err != nil {
 		logger.Errorf("error looking up CNAME for %s: %s", d.Name, err)
-		return ""
+		return []string{}
 	}
-	return cname
+	return []string{cname}
+}
+
+func (d *Domain) getARecords() []string {
+	ipList, err := net.LookupIP(d.Name)
+	if err != nil {
+		logger.Errorf("error looking up A for %s: %s", d.Name, err)
+		return []string{}
+	}
+
+	var ipListString []string
+
+	for _, ip := range ipList {
+		ipListString = append(ipListString, ip.String())
+	}
+
+	return ipListString
 }
 
 func (d *Domain) Check() bool {
+
+	var resolvedTarget []string
+	resolvedTarget = append(resolvedTarget, d.getARecords()...)
+	resolvedTarget = append(resolvedTarget, d.getCNAMERecords()...)
+
 	for _, t := range d.Target {
-		if strings.Contains(d.getCNAMERecords(), t) {
+		if slices.Contains(resolvedTarget, t) {
 			logger.Println(d.Name, "targets", t)
 			return true
 		}

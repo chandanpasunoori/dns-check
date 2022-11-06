@@ -8,3 +8,4 @@ cronjob.yaml
 Makefile
 bin/
 ignored.json
+dns-check
