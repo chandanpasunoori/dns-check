@@ -56,7 +56,7 @@ func (d *Domain) Check() (bool, []string) {
 
 	for _, t := range d.Target {
 		if slices.Contains(resolvedTarget, t) {
-			logger.Println(d.Name, "targets", t)
+			logger.Infof("%s pointing to (%s) as expected (%s)", d.Name, strings.Join(resolvedTarget, ","), t)
 			return true, resolvedTarget
 		}
 	}
@@ -66,7 +66,7 @@ func (d *Domain) Check() (bool, []string) {
 func checkDNSTarget(domain Domain, ses SES) {
 	logger.Infof("checking %s", domain.Name)
 	if ok, resolvedList := domain.Check(); !ok {
-		logger.Errorf("%s is not pointing to %s", domain.Name, domain.Target)
+		logger.Errorf("%s (%s) is not pointing to %s", domain.Name, strings.Join(resolvedList, ","), domain.Target)
 		sendEmail(Subject(domain, ses), HtmlBody(domain, ses, resolvedList), TextBody(domain, ses, resolvedList), ses)
 	}
 }
