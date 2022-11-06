@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -47,7 +48,7 @@ func (d *Domain) getARecords() []string {
 	return ipListString
 }
 
-func (d *Domain) Check() bool {
+func (d *Domain) Check() (bool, []string) {
 
 	var resolvedTarget []string
 	resolvedTarget = append(resolvedTarget, d.getARecords()...)
@@ -56,17 +57,17 @@ func (d *Domain) Check() bool {
 	for _, t := range d.Target {
 		if slices.Contains(resolvedTarget, t) {
 			logger.Println(d.Name, "targets", t)
-			return true
+			return true, resolvedTarget
 		}
 	}
-	return false
+	return false, resolvedTarget
 }
 
 func checkDNSTarget(domain Domain, ses SES) {
 	logger.Infof("checking %s", domain.Name)
-	if !domain.Check() {
+	if ok, resolvedList := domain.Check(); !ok {
 		logger.Errorf("%s is not pointing to %s", domain.Name, domain.Target)
-		sendEmail(Subject(domain, ses), HtmlBody(domain, ses), TextBody(domain, ses), ses)
+		sendEmail(Subject(domain, ses), HtmlBody(domain, ses, resolvedList), TextBody(domain, ses, resolvedList), ses)
 	}
 }
 
@@ -82,11 +83,11 @@ const (
 func Subject(d Domain, ses SES) string {
 	return fmt.Sprintf(ses.Subject, d.Name)
 }
-func HtmlBody(d Domain, ses SES) string {
-	return fmt.Sprintf(ses.HtmlBody, d.Name)
+func HtmlBody(d Domain, ses SES, resolvedList []string) string {
+	return fmt.Sprintf(ses.HtmlBody, d.Name, strings.Join(resolvedList, ","))
 }
-func TextBody(d Domain, ses SES) string {
-	return fmt.Sprintf(ses.Body, d.Name)
+func TextBody(d Domain, ses SES, resolvedList []string) string {
+	return fmt.Sprintf(ses.Body, d.Name, strings.Join(resolvedList, ","))
 }
 
 func sendEmail(subject, htmlBody, body string, s SES) {

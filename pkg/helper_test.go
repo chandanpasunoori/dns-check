@@ -23,7 +23,7 @@ func TestDomain_Check(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.d.Check(); got != tt.want {
+			if ok, got := tt.d.Check(); ok != tt.want {
 				t.Errorf("Domain.Check() = %v, want %v", got, tt.want)
 			}
 		})
